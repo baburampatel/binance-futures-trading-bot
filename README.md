@@ -1,115 +1,98 @@
 # Binance Futures Testnet – Trading Bot
 
-A clean, minimal Python trading bot for the **Binance USDT-M Futures Testnet** that supports MARKET and LIMIT orders via a simple command-line interface.
+A Python script for placing MARKET and LIMIT futures orders on the [Binance Testnet](https://testnet.binancefuture.com). Written as a hiring assignment — it hits the real Testnet API, logs everything to a file, and validates inputs before touching the network.
+
+Hardcoded to the Testnet. Not usable on live Binance without changing the base URL.
 
 ---
 
-## Features
-
-- Place **MARKET** and **LIMIT** futures orders on the Binance Testnet
-- Supports **BUY** and **SELL** on any valid symbol (e.g. `BTCUSDT`)
-- Validates all CLI inputs before sending any request
-- Prints a clean pre-flight order summary and a formatted order response
-- Writes structured logs (requests, responses, errors) to `logs/trading_bot.log`
-- Secrets loaded from `.env` — never hardcoded
-
----
-
-## Project Structure
+## Project layout
 
 ```
 trading_bot/
 ├── bot/
-│   ├── __init__.py          # Package marker
-│   ├── client.py            # Binance REST API wrapper (Testnet only)
-│   ├── orders.py            # Order placement orchestrator
-│   ├── validators.py        # Pure input validation helpers
-│   ├── logging_config.py    # File + console logging setup
-│   └── cli.py               # argparse CLI entry point
+│   ├── client.py          # raw REST calls, HMAC signing
+│   ├── orders.py          # order logic + console output
+│   ├── validators.py      # input checks, no side effects
+│   ├── logging_config.py  # file + console logging
+│   └── cli.py             # argparse CLI, interactive mode
 ├── tests/
-│   ├── __init__.py
-│   └── test_validators.py   # Unit tests for validators
+│   └── test_validators.py
 ├── logs/
-│   └── trading_bot.log      # Auto-created at runtime
-├── .env.example             # Credential template
-├── requirements.txt
-└── README.md
+│   └── trading_bot.log    # sample log included
+├── .env.example
+└── requirements.txt
 ```
 
 ---
 
 ## Setup
 
-### 1. Prerequisites
-
-- Python 3.10 or higher
-- A [Binance Futures Testnet](https://testnet.binancefuture.com) account and API keys
-
-### 2. Install Dependencies
+**Python 3.10+ required.**
 
 ```bash
-cd trading_bot
 pip install -r requirements.txt
-```
-
-### 3. Configure API Credentials
-
-Copy the example env file and fill in your Testnet keys:
-
-```bash
 cp .env.example .env
 ```
 
-Edit `.env`:
+Open `.env` and paste your Testnet keys:
 
-```env
-BINANCE_API_KEY=your_testnet_api_key_here
-BINANCE_API_SECRET=your_testnet_api_secret_here
+```
+BINANCE_API_KEY=your_key
+BINANCE_API_SECRET=your_secret
 ```
 
-> ⚠️ **Never commit your `.env` file.** It is excluded from version control.
+Get keys at https://testnet.binancefuture.com → API Management.
 
 ---
 
-## Usage
+## Running orders
 
-All commands are run from inside the `trading_bot/` directory.
-
-### MARKET BUY
+All commands run from inside `trading_bot/`.
 
 ```bash
+# market buy
 python -m bot.cli --symbol BTCUSDT --side BUY --type MARKET --quantity 0.01
-```
 
-### MARKET SELL
-
-```bash
+# market sell
 python -m bot.cli --symbol BTCUSDT --side SELL --type MARKET --quantity 0.01
-```
 
-### LIMIT BUY
-
-```bash
+# limit buy
 python -m bot.cli --symbol BTCUSDT --side BUY --type LIMIT --quantity 0.01 --price 85000
-```
 
-### LIMIT SELL
-
-```bash
+# limit sell
 python -m bot.cli --symbol BTCUSDT --side SELL --type LIMIT --quantity 0.01 --price 90000
 ```
 
-### Help
+### Interactive mode
+
+If you'd rather be prompted for each field:
 
 ```bash
-python -m bot.cli --help
+python -m bot.cli --interactive
+# or pre-fill part of it:
+python -m bot.cli --symbol BTCUSDT --interactive
+```
+
+You'll also get a quick confirmation before each order is sent. Skip it with `--yes` / `-y` if you're scripting.
+
+```bash
+python -m bot.cli --symbol BTCUSDT --side BUY --type MARKET --quantity 0.01 --yes
 ```
 
 ---
 
-## Example Output
+## What the output looks like
 
 ```
+  Binance Futures Testnet  –  trading bot
+  ----------------------------------------
+
+  About to place:
+    BUY MARKET  0.01 BTCUSDT  (market price)
+
+  Send order? [Y/n]: y
+
 ─────────────────────────────────────────────
   ORDER SUMMARY
 ─────────────────────────────────────────────
@@ -134,44 +117,43 @@ python -m bot.cli --help
 
 ---
 
-## Running Tests
+## Tests
 
 ```bash
 pip install pytest
 python -m pytest tests/ -v
 ```
 
+23 tests covering all input validation paths. No live API needed.
+
 ---
 
 ## Logs
 
-Logs are automatically written to `logs/trading_bot.log`.
+Everything gets written to `logs/trading_bot.log`:
+- **DEBUG**: full request payload + raw API response
+- **INFO**: order placed / error summary (also on console)
 
-- **File handler** (DEBUG level): full API request payloads, response bodies, and errors
-- **Console handler** (INFO level): human-readable summary messages only
-
-Sample log entries are included in the `logs/` directory with examples of a MARKET order and a LIMIT order.
+The `logs/` folder includes a sample log with one MARKET and one LIMIT entry.
 
 ---
 
-## Error Handling
+## Common errors
 
-| Scenario | Behaviour |
+| What happened | What you'll see |
 |---|---|
-| Missing `--price` for LIMIT order | Clear validation error, no request sent |
-| Invalid side / type / quantity | Validation error with descriptive message |
-| Binance API error (e.g. bad symbol) | Prints API error code and message |
-| Network timeout / connection failure | Prints network error, exits cleanly |
-| Missing `.env` credentials | Clear message with setup instructions |
+| `--price` missing on a LIMIT order | `--price is required for LIMIT orders` |
+| Bad symbol or quantity | validation error before any API call |
+| Binance rejects the request | error code + message from Binance |
+| No network / timeout | `Network error: ...` |
+| `.env` not set up | short message with the fix |
 
 ---
 
 ## Assumptions
 
-1. **Testnet only** – the base URL `https://testnet.binancefuture.com` is hardcoded; the bot cannot be redirected to the live exchange unintentionally.
-2. **USDT-M Futures** – only the `/fapi/v1/order` endpoint is used, scoped to Futures.
-3. **timeInForce = GTC** – LIMIT orders use Good-Till-Cancelled by default, as this is the most common and least surprising default.
-4. **No position management** – this bot places orders only; it does not track open positions, PnL, or account balance.
-5. **Quantity precision** – the caller is responsible for providing a quantity that meets the symbol's lot-size filter on the Testnet. Binance returns a clear API error if precision is violated.
-6. **Single-symbol CLI** – the CLI places one order per invocation; orchestration across multiple symbols is out of scope for this assignment.
-7. **Python 3.10+** – the `str | float` union type hint syntax requires Python 3.10 or later.
+- **Testnet only** — base URL is hardcoded, can't be overridden from CLI
+- **LIMIT orders use GTC** — Good-Till-Cancelled; most common default
+- **No position tracking** — this only places orders; no P&L, no balance checks
+- **Lot-size is your job** — Binance will reject quantities that violate the symbol's precision rules; the error message from the API will tell you what's wrong
+- **One order per run** — if you need bulk orders or a loop, wrap the CLI call in a shell script
